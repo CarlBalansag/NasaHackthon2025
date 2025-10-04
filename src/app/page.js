@@ -4,8 +4,56 @@ import { Search, Bell, User, MapPin, Plus, Sun, Moon, Cloud, CloudRain, CloudSno
 
 export default function WeatherApp() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [filteredLocations, setFilteredLocations] = useState([]);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
 
-  // Dummy data
+  const handleSearchChange = async (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    
+    if (value.trim().length > 2) {
+      setIsLoadingLocations(true);
+      setShowDropdown(true);
+      
+      try {
+        const response = await fetch(
+          'https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(value) + '&count=10&language=en&format=json'
+        );
+        const data = await response.json();
+        
+        if (data.results) {
+          const locations = data.results.map(result => ({
+            city: result.name,
+            state: result.admin1 || '',
+            country: result.country,
+            latitude: result.latitude,
+            longitude: result.longitude
+          }));
+          setFilteredLocations(locations);
+        } else {
+          setFilteredLocations([]);
+        }
+      } catch (error) {
+        console.error('Error fetching locations:', error);
+        setFilteredLocations([]);
+      } finally {
+        setIsLoadingLocations(false);
+      }
+    } else {
+      setShowDropdown(false);
+      setFilteredLocations([]);
+    }
+  };
+
+  const handleLocationSelect = (location) => {
+    const locationString = location.city + (location.state ? ', ' + location.state : '') + ', ' + location.country;
+    setSearchQuery(locationString);
+    setShowDropdown(false);
+    setFilteredLocations([]);
+  };
+
   const currentLocation = {
     city: 'Los Angeles',
     state: 'CA',
@@ -48,38 +96,91 @@ export default function WeatherApp() {
   const threeDayForecast = [
     { day: 'Tuesday', condition: 'Cloudy', icon: 'cloudy', high: 26, low: 11 },
     { day: 'Wednesday', condition: 'Rainy', icon: 'rainy', high: 26, low: 11 },
-    { day: 'Tuesday', condition: 'Snowfall', icon: 'snow', high: 26, low: 11 }
+    { day: 'Thursday', condition: 'Snowfall', icon: 'snow', high: 26, low: 11 }
   ];
 
   const getWeatherIcon = (condition) => {
-    if (condition === 'cloudy') return <Cloud className="w-8 h-8 text-white" />;
-    if (condition === 'rainy') return <CloudRain className="w-8 h-8 text-white" />;
-    if (condition === 'snow') return <CloudSnow className="w-8 h-8 text-white" />;
+    if (condition === 'cloudy') {
+      return <Cloud className="w-8 h-8 text-white" />;
+    }
+    if (condition === 'rainy') {
+      return <CloudRain className="w-8 h-8 text-white" />;
+    }
+    if (condition === 'snow') {
+      return <CloudSnow className="w-8 h-8 text-white" />;
+    }
     return <Sun className="w-8 h-8 text-white" />;
   };
 
   const getRainColor = (chance) => {
-    if (chance >= 80) return 'bg-indigo-900';
-    if (chance >= 50) return 'bg-indigo-600';
-    if (chance >= 30) return 'bg-indigo-400';
+    if (chance >= 80) {
+      return 'bg-indigo-900';
+    }
+    if (chance >= 50) {
+      return 'bg-indigo-600';
+    }
+    if (chance >= 30) {
+      return 'bg-indigo-400';
+    }
     return 'bg-indigo-300';
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 to-purple-100 p-4 md:p-8">
-      {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="flex items-center justify-between gap-4 mb-6">
-          <div className="flex-1 max-w-md relative">
+          <div className="flex-1 max-w-2xl flex gap-3">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onFocus={() => searchQuery.length > 0 && setShowDropdown(true)}
+                placeholder="Search here"
+                className="w-full px-4 py-3 pl-4 rounded-xl bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              />
+              {showDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg z-50 max-h-80 overflow-y-auto">
+                  {isLoadingLocations ? (
+                    <div className="px-4 py-8 text-center text-gray-500">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                      <p className="mt-2">Searching locations...</p>
+                    </div>
+                  ) : filteredLocations.length > 0 ? (
+                    filteredLocations.map((location, index) => (
+                      <div
+                        key={index}
+                        onClick={() => handleLocationSelect(location)}
+                        className="px-4 py-3 hover:bg-purple-50 cursor-pointer transition-colors border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-purple-600" />
+                          <div>
+                            <p className="font-semibold text-gray-800">{location.city}</p>
+                            <p className="text-sm text-gray-500">
+                              {location.state ? location.state + ', ' : ''}{location.country}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-8 text-center text-gray-500">
+                      No locations found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search here"
-              className="w-full px-4 py-3 pl-4 pr-12 rounded-xl bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-4 py-3 rounded-xl bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
-            <button className="absolute right-3 top-1/2 -translate-y-1/2">
-              <Search className="w-5 h-5 text-gray-500" />
+            <button className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2">
+              <Search className="w-5 h-5" />
+              <span className="font-medium">Search</span>
             </button>
           </div>
           <div className="flex gap-3">
@@ -93,9 +194,7 @@ export default function WeatherApp() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Column */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Current Location Card */}
             <div className="bg-white rounded-3xl p-6 shadow-lg">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -135,7 +234,6 @@ export default function WeatherApp() {
               </div>
             </div>
 
-            {/* Today's Highlights */}
             <div className="bg-white rounded-3xl p-6 shadow-lg">
               <h3 className="text-xl font-semibold text-gray-800 mb-6">Today's Highlights</h3>
               
@@ -167,7 +265,6 @@ export default function WeatherApp() {
                 </div>
               </div>
 
-              {/* Temperature Chart */}
               <div className="border-t pt-6">
                 <div className="flex gap-4 mb-4">
                   <button className="px-4 py-2 text-sm font-semibold text-gray-800 border-b-2 border-gray-800">Today</button>
@@ -177,16 +274,15 @@ export default function WeatherApp() {
                 <div className="relative h-32">
                   <svg className="w-full h-full">
                     <polyline
-                      points={hourlyData.map((d, i) => `${(i / (hourlyData.length - 1)) * 100}%,${100 - (d.temp / 25) * 100}%`).join(' ')}
+                      points={hourlyData.map((d, i) => {
+                        const x = (i / (hourlyData.length - 1)) * 100;
+                        const y = 100 - (d.temp / 25) * 100;
+                        return x + ',' + y;
+                      }).join(' ')}
                       fill="none"
                       stroke="#818CF8"
                       strokeWidth="3"
                       className="drop-shadow-lg"
-                    />
-                    <polyline
-                      points={hourlyData.map((d, i) => `${(i / (hourlyData.length - 1)) * 100}%,${100 - (d.temp / 25) * 100}%`).join(' ') + ' 100%,100% 0%,100%'}
-                      fill="url(#gradient)"
-                      opacity="0.3"
                     />
                     <defs>
                       <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -194,24 +290,28 @@ export default function WeatherApp() {
                         <stop offset="100%" stopColor="#818CF8" stopOpacity="0" />
                       </linearGradient>
                     </defs>
-                    {hourlyData.map((d, i) => (
-                      <g key={i}>
-                        <circle
-                          cx={`${(i / (hourlyData.length - 1)) * 100}%`}
-                          cy={`${100 - (d.temp / 25) * 100}%`}
-                          r="4"
-                          fill="#818CF8"
-                        />
-                        <text
-                          x={`${(i / (hourlyData.length - 1)) * 100}%`}
-                          y={`${100 - (d.temp / 25) * 100 - 8}%`}
-                          textAnchor="middle"
-                          className="text-xs fill-gray-700 font-semibold"
-                        >
-                          {d.temp}
-                        </text>
-                      </g>
-                    ))}
+                    {hourlyData.map((d, i) => {
+                      const x = (i / (hourlyData.length - 1)) * 100;
+                      const y = 100 - (d.temp / 25) * 100;
+                      return (
+                        <g key={i}>
+                          <circle
+                            cx={x + '%'}
+                            cy={y + '%'}
+                            r="4"
+                            fill="#818CF8"
+                          />
+                          <text
+                            x={x + '%'}
+                            y={(y - 8) + '%'}
+                            textAnchor="middle"
+                            className="text-xs fill-gray-700 font-semibold"
+                          >
+                            {d.temp}
+                          </text>
+                        </g>
+                      );
+                    })}
                   </svg>
                   <div className="flex justify-between mt-2">
                     {hourlyData.map((d, i) => (
@@ -223,9 +323,7 @@ export default function WeatherApp() {
             </div>
           </div>
 
-          {/* Right Column */}
           <div className="space-y-6">
-            {/* Chance of Rain */}
             <div className="bg-white rounded-3xl p-6 shadow-lg">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-gray-800">Chance of Rain</h3>
@@ -244,8 +342,8 @@ export default function WeatherApp() {
                     <span className="text-sm text-gray-600 w-16">{item.time}</span>
                     <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                       <div 
-                        className={`h-full ${getRainColor(item.chance)} rounded-full transition-all duration-500`}
-                        style={{ width: `${item.chance}%` }}
+                        className={'h-full rounded-full transition-all duration-500 ' + getRainColor(item.chance)}
+                        style={{ width: item.chance + '%' }}
                       />
                     </div>
                   </div>
@@ -259,7 +357,6 @@ export default function WeatherApp() {
               </div>
             </div>
 
-            {/* 3 Days Forecast */}
             <div className="bg-white rounded-3xl p-6 shadow-lg">
               <h3 className="text-xl font-semibold text-gray-800 mb-6">3 Days Forecast</h3>
               
